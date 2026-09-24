@@ -4,11 +4,18 @@
 
 ## 职责
 
-Main Agent 负责理解需求、检索实现、修改代码、调用工具、完成任务及管理 Memory。Experience Reviewer 仅负责审查纠正事件，遵循 [Skill 契约](skills/experience-review/SKILL.md)；角色限制见 [Reviewer 定义](agents/experience-reviewer.md)。
+Main Agent 负责理解需求、检索实现、修改代码、执行验证、完成任务及 Memory 持久化。Experience Review 负责候选判断，遵循 [Skill 契约](skills/experience-review/SKILL.md) 和 [Reviewer 定义](agents/experience-reviewer.md)。[Memory Manager](agents/memory-manager.md) 负责生命周期决策；[Retrieval](memory/retrieval.md) 负责未来任务加载。两种子 Agent 均不修改业务代码。
 
 ## Self Improvement Loop
 
 用户纠正不等于经验。正常需求演进、一次性选择和临时偏好不自动形成长期规则。
+
+```text
+Correction Event → Experience Review → Candidate Memory → Validation
+                 → Memory Manager → Active Memory → Future Retrieval
+```
+
+Validation 是证据收集与验证过程；Validated 是 Manager 核验通过后记录的状态。完整状态契约见 [Lifecycle](memory/lifecycle.md)。
 
 ### 1. 创建 Correction Event
 
@@ -34,20 +41,27 @@ Main Agent 负责理解需求、检索实现、修改代码、调用工具、完
 ### 4. 生成 Candidate Memory
 
 - 输入：CREATE_CANDIDATE 的结构化结果。
-- 处理：主代理核对必需字段、来源和范围，查找目标 Memory 中的重复或冲突。重复原则追加证据到既有条目；实质冲突暂缓激活并调查。
+- 处理：主代理核对 Reviewer 输出，先查询 Index 并向 Memory Manager 提供重复/冲突材料，按其治理结果保存候选或追加来源，同步 Index。实质冲突暂缓激活并调查。
 - 判断：缺字段或来源不可追溯时退回补充，不写成有效经验；候选不得直接影响未来任务决策。
 - 输出：包含 Skill 要求的全部字段、状态和验证计划的 Candidate，或附于既有条目的新来源记录。
 
-### 5. 验证并管理生命周期
+### 5. Validation
 
 - 输入：候选、来源、相关验证证据及既有规则。
-- 处理：主代理按 Memory 结构验证根因、原则、适用边界、反例、重复和冲突；记录实际检查结果。
-- 判断：验证通过 → Validated → 自动进入 lessons 成为 Active Memory；验证失败 → DISCARD；证据不足或冲突未解决 → 保留 Candidate。
-- 输出：状态、证据、时间及理由。后续发现原则失效时设为 Deprecated，保留替代关系和历史。
+- 处理：主代理按 Lifecycle 的验证门槛检验根因、原则、适用边界及反例，提供方法、实际结果和出处。
+- 判断：检查通过只是供 Manager 核验的证据；证据不足或失败如实记录，不自行宣布 Active。
+- 输出：Validation 材料及待验证项，交 Memory Manager。
 
-## 使用经验
+### 6. Memory Manager
 
-- 输入：当前任务和目标 Memory。
-- 处理：主代理先按类别和适用范围筛选，再读取相关 Active Memory。
-- 判断：只有状态为 Active 且符合适用范围、未命中不适用范围的经验可采用。当前明确要求及更高优先级规则优先；不兼容时调查并记录冲突。
-- 输出：与当前决策相关的原则及必要依据。不得全量加载 events、candidates 或 Deprecated 内容作为有效经验。
+- 输入：候选、Reviewer 结果、Validation、相关 Index 与当前规则。
+- 处理：Manager 核查合法转换，输出 PROMOTE、KEEP_CANDIDATE 或 DEPRECATE；主代理按预期 Revision 落实正文、历史和索引变更。
+- 判断：完整验证后才 Candidate → Validated；激活条件满足再到 Active。验证失败按既有语义转 Discarded；失效的 Active 转 Deprecated。同步失败不加载。
+- 输出：可追溯的状态变更和一致的 Index。独立 Agent 不可用时主代理分阶段执行相同契约，并明确降级限制。
+
+## Future Retrieval：规划前使用经验
+
+- 输入：当前任务、项目上下文和任务分类。
+- 处理：User Task → Task Classification → Generate Retrieval Query → Search Memory Index → Load Relevant Memory → Task Planning。首先查询 [Index](memory/index.md)，只读取限额内的匹配条目并核验正文状态。
+- 判断：只有 Active 且适用、证据和版本一致的经验可用。Candidate 不允许自动进入 Agent 上下文；Validated、Deprecated、Discarded 也不参与任务执行。禁止全量加载 lessons 或全部历史。
+- 输出：匹配 Memory、逐条加载原因、不匹配原因和索引问题。无匹配时按当前规则继续；索引故障交治理修复，不回退为全文加载。

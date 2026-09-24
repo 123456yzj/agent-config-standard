@@ -64,7 +64,7 @@ description: 审查用户纠正事件的错误归因与复用价值；当最终�
 - 输入：以上分析。
 - 处理：输出下述唯一一种结果结构，原则应可执行、具体且不过度泛化。
 - 判断：一次性需求、临时偏好和泛泛的“认真检查”不足以构成候选。长期偏好须有用户明确长期表述或独立事件证据，并界定范围。
-- 输出：DISCARD 或 CREATE_CANDIDATE。这里只评估候选资格，后续验证由主代理执行。
+- 输出：DISCARD 或 CREATE_CANDIDATE。这里只评估候选资格，后续验证由主代理执行，状态维护与激活由 [Memory Manager](../../agents/memory-manager.md) 核验决策。不得将 CREATE_CANDIDATE 当作激活许可。
 
 ## Output Contract
 
